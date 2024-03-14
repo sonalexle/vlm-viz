@@ -231,7 +231,7 @@ You can get examples of how to do so in the `reproducibility-scripts/` directory
 > **TEMPLATE TODO**:
 > Do provide the runs and trained models or update/delete this section, then delete this note.
 
-We share our Weights and Biases runs in [this W&B project](https://wandb.ai/claire-labo/template-project-name).
+We share our Weights and Biases runs in [this W&B project](https://wandb.ai/claire-labo/vlm-viz).
 
 Moreover, we make our trained models available.
 You can follow the instructions in `outputs/README.md` to download and use them.
@@ -247,7 +247,7 @@ Below, we give a description of the main files and directories in this repositor
 
 ```
  └─── src/                              # Source code.
-    └── template_package_name           # Our package.
+    └── vlm_viz           # Our package.
         ├── configs/                    # Hydra configuration files.
         └── template_experiment.py      # A template experiment.
 ```

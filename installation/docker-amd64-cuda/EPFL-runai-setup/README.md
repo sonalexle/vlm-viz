@@ -129,16 +129,16 @@ forwards your ssh keys, and allows you to clone your repository on the container
    to have the latest state of your repo.)
    ```bash
    # Somewhere in your PVC, say your personal directory there.
-   mkdir template-project-name
-   git clone <repo-url> template-project-name/dev
-   git clone <repo-url> template-project-name/run
+   mkdir vlm-viz
+   git clone <repo-url> vlm-viz/dev
+   git clone <repo-url> vlm-viz/run
    ```
 
    We also recommend that you make Git ignore the executable bit as the repo is moved across filesystems.
    You can do so by running `git config core.filemode false` in both repositories.
 
    ```bash
-   cd template-project-name/dev && git config core.filemode false
+   cd vlm-viz/dev && git config core.filemode false
    cd ../run && git config core.filemode false
    ```
 
@@ -171,19 +171,19 @@ You should expect to see something like:
 $ runai logs example-minimal
 ...
 [TEMPLATE INFO] Running entrypoint.sh
-[TEMPLATE INFO] PROJECT_ROOT_AT is set to /claire-rcp-scratch/home/moalla/template-project-name/dev.
-[TEMPLATE INFO] The next commands (and all interactive shells) will be run from /claire-rcp-scratch/home/moalla/template-project-name/dev.
+[TEMPLATE INFO] PROJECT_ROOT_AT is set to /claire-rcp-scratch/home/moalla/vlm-viz/dev.
+[TEMPLATE INFO] The next commands (and all interactive shells) will be run from /claire-rcp-scratch/home/moalla/vlm-viz/dev.
 [TEMPLATE INFO] Installing the project with pip.
-[TEMPLATE INFO] Expecting /claire-rcp-scratch/home/moalla/template-project-name/dev to be a Python project.
+[TEMPLATE INFO] Expecting /claire-rcp-scratch/home/moalla/vlm-viz/dev to be a Python project.
 [TEMPLATE INFO] To skip this installation use the env variable SKIP_INSTALL_PROJECT=1.
 ...
-Obtaining file:///claire-rcp-scratch/home/moalla/template-project-name/dev
+Obtaining file:///claire-rcp-scratch/home/moalla/vlm-viz/dev
 ...
-Building wheels for collected packages: template-project-name
+Building wheels for collected packages: vlm-viz
 ...
-Successfully built template-project-name
-Installing collected packages: template-project-name
-Successfully installed template-project-name-0.0.1
+Successfully built vlm-viz
+Installing collected packages: vlm-viz
+Successfully installed vlm-viz-0.0.1
 ...
 [TEMPLATE INFO] Testing that the package can be imported.
 [TEMPLATE INFO] Package imported successfully.
@@ -370,7 +370,7 @@ You can put this directory in a place where you keep the remote development tool
 (You can use the `minimal.sh` example to access your PVC.)
 
 ```
-/claire-rcp-scrach/home/moalla/template-project-name
+/claire-rcp-scrach/home/moalla/vlm-viz
 ├── ...               # Other remote development tools.
 └── pycharm-config    # To contain the config and cache of the IDE.
 ```
@@ -406,7 +406,7 @@ You can find an example in `submit-scripts/remote-development.sh`.
    The link looks like:
 
    ```bash
-    Gateway link: jetbrains-gateway://connect#idePath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Fremote-development%2Fpycharm&projectPath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Ftemplate-project-name%2Fdev&host=127.0.0.1&port=2222&user=moalla&type=ssh&deploy=false&newUi=true
+    Gateway link: jetbrains-gateway://connect#idePath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Fremote-development%2Fpycharm&projectPath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Fvlm-viz%2Fdev&host=127.0.0.1&port=2222&user=moalla&type=ssh&deploy=false&newUi=true
     ```
 2. Enable port forwarding for the SSH port.
 3. Use the Gateway link to connect to the remote IDE from a local JetBrains Gateway client as
