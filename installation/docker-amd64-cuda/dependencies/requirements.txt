@@ -18,3 +18,4 @@ ftfy
 einops
 pandas
 ipywidgets
+opencv-python==4.5.4.60
