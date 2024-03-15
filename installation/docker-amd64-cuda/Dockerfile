@@ -114,8 +114,12 @@ COPY dependencies/requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 # Install pip packages.
 ARG PIP_REQS_FILE=/tmp/dependencies/requirements.txt
 COPY --link dependencies/requirements.txt ${PIP_REQS_FILE}
+RUN pip install --upgrade pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-before-pip-install-r.txt
 RUN pip install -r ${PIP_REQS_FILE}
+# note that in requirements.txt we install opencv-python==4.5.4.60, see https://github.com/NVIDIA/DALI/issues/5052
+RUN pip install --upgrade opencv-python
+RUN python -c "import nltk;nltk.download('punkt');nltk.download('wordnet');nltk.download('omw-1.4')"
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-after-pip-install-r.txt
 
 # Optional optimizations.

@@ -111,8 +111,8 @@ pull_generic() {
 build_generic() {
   # Build the generic runtime and dev images and tag them with the current git commit.
   check
-  docker compose -p "${COMPOSE_PROJECT}" build image-run-root
-  docker compose -p "${COMPOSE_PROJECT}" build image-dev-root
+  docker compose -p "${COMPOSE_PROJECT}" build image-run-root --no-cache
+  docker compose -p "${COMPOSE_PROJECT}" build image-dev-root --no-cache
 
   # Tag the images with the current git commit.
   GIT_COMMIT=$(git rev-parse --short HEAD)
