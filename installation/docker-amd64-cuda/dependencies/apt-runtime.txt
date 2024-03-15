@@ -3,3 +3,15 @@
 zsh                 # Required.
 openssl             # Required.
 htop                # Useful.
+curl
+nano
+vim
+unzip
+wget
+tmux
+screen
+ca-certificates
+apt-utils
+libjpeg-dev
+libpng-dev
+libgl1-mesa-dev
