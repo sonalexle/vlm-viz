@@ -17,5 +17,4 @@ pytorch-lightning
 ftfy
 einops
 pandas
-opencv-python
 ipywidgets
