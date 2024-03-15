@@ -13,8 +13,6 @@ accelerate
 sentencepiece
 peft
 compel
-torch
-torchvision
 pytorch-lightning
 ftfy
 einops
