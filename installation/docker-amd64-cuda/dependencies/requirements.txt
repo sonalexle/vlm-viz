@@ -7,6 +7,7 @@ openai
 openai-clip
 open_clip_torch
 diffusers
+datasets
 transformers
 nltk
 accelerate
