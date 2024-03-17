@@ -3,6 +3,7 @@ tqdm
 wandb
 pre-commit
 black
+nltk
 openai
 openai-clip
 open_clip_torch
@@ -10,7 +11,7 @@ diffusers
 datasets
 evaluate
 transformers
-nltk
+bitsandbytes
 accelerate
 sentencepiece
 peft
@@ -21,4 +22,8 @@ einops
 pandas
 h5py
 moviepy
+jupyter
+jupyterlab
+jupyterlab_widgets
+ipywidgets
 opencv-python==4.5.4.60
