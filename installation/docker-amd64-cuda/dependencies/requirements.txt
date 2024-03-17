@@ -8,6 +8,7 @@ openai-clip
 open_clip_torch
 diffusers
 datasets
+evaluate
 transformers
 nltk
 accelerate
@@ -18,4 +19,6 @@ pytorch-lightning
 ftfy
 einops
 pandas
+h5py
+moviepy
 opencv-python==4.5.4.60
