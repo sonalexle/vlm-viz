@@ -161,9 +161,9 @@ push_usr_or_root() {
   "${PUSH_IMAGE_NAME}:run-latest-${USR_OR_ROOT}"
   docker push "${PUSH_IMAGE_NAME}:run-latest-${USR_OR_ROOT}"
 
-  docker tag "${IMAGE_NAME}:dev-latest-${USR_OR_ROOT}" \
-  "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
-  docker push "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
+  # docker tag "${IMAGE_NAME}:dev-latest-${USR_OR_ROOT}" \
+  # "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
+  # docker push "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
 
   # If the image has a git tag push it as well.
   # GIT_COMMIT=$(git rev-parse --short HEAD)
