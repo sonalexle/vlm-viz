@@ -10,7 +10,7 @@ version = "0.0.1"
 requires-python = ">=3.10"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vlm_viz"]
+packages = ["vlm_viz"]
 
 [tool.isort]
 known_third_party = ["wandb"]

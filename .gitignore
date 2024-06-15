@@ -143,3 +143,6 @@ outputs/*
 !outputs/README.md
 
 wandb
+vlm_viz/artifacts/*
+artifacts/*
+.hf_token
