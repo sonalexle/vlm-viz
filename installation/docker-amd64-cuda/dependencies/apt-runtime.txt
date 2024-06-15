@@ -15,3 +15,6 @@ apt-utils
 libjpeg-dev
 libpng-dev
 libgl1-mesa-dev
+default-jdk
+python3.10-venv
+libaio-dev

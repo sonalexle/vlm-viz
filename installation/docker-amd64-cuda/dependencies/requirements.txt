@@ -1,22 +1,35 @@
+# original
 hydra-core
 tqdm
 wandb
 pre-commit
 black
-openai
-openai-clip
-open_clip_torch
-diffusers
-datasets
-transformers
+# added
 nltk
-accelerate
-sentencepiece
-peft
-compel
-pytorch-lightning
-ftfy
-einops
-pandas
-ipywidgets
-opencv-python==4.5.4.60
+# openai
+# openai-clip
+# open_clip_torch
+# diffusers
+# datasets
+# evaluate
+# transformers
+# bitsandbytes
+# accelerate
+# sentencepiece
+# peft
+# compel
+# pytorch-lightning
+# ftfy
+# einops
+# pandas
+# h5py
+# moviepy
+# jupyter
+# jupyterlab
+# jupyterlab_widgets
+# ipywidgets
+# opencv-python==4.5.4.60
+# sqlitedict
+# sacrebleu
+# more_itertools
+# rouge_score
