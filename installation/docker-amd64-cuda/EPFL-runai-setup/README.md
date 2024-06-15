@@ -361,7 +361,7 @@ to be the same as the one specified in the `PROJECT_ROOT_AT`.
 **Preliminaries: saving the project IDE configuration**
 
 The remote IDE stores its configuration (e.g., the interpreters you set up, memory requirements, etc.)
-in `~/.config/JetBrains/RemoteDev-PY/...` and its cache in `~/.cache/JetBrains/RemoteDev-PY/...`.
+in `~/.config/JetBrains/RemoteDev-PY/...` and its cache in `./.cache/JetBrains/RemoteDev-PY/...`.
 Every project location will have its own configuration and cache there.
 
 To have it preserved between different dev containers, you should create a placeholder
@@ -387,12 +387,12 @@ your IDE and project configurations.
 2. Enable port forwarding for the SSH port.
 3. Then follow the instructions [here](https://www.jetbrains.com/help/pycharm/remote-development-a.html#gateway).
 
-You can then copy the directory containing the binaries `~/.cache/JetBrains/RemoteDev/dist/<some_pycharm_ide_version>`
+You can then copy the directory containing the binaries `./.cache/JetBrains/RemoteDev/dist/<some_pycharm_ide_version>`
 to your PVC to use option 2.
 
 ```bash
 # Example
-cp -r ~/.cache/JetBrains/RemoteDev/dist/<some_pycharm_ide_version> /claire-rcp-scrach/home/moalla/remote-development/pycharm
+cp -r ./.cache/JetBrains/RemoteDev/dist/<some_pycharm_ide_version> /claire-rcp-scrach/home/moalla/remote-development/pycharm
 ```
 
 **Option 2:**

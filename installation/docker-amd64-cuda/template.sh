@@ -161,22 +161,22 @@ push_usr_or_root() {
   "${PUSH_IMAGE_NAME}:run-latest-${USR_OR_ROOT}"
   docker push "${PUSH_IMAGE_NAME}:run-latest-${USR_OR_ROOT}"
 
-  docker tag "${IMAGE_NAME}:dev-latest-${USR_OR_ROOT}" \
-  "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
-  docker push "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
+  # docker tag "${IMAGE_NAME}:dev-latest-${USR_OR_ROOT}" \
+  # "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
+  # docker push "${PUSH_IMAGE_NAME}:dev-latest-${USR_OR_ROOT}"
 
   # If the image has a git tag push it as well.
-  GIT_COMMIT=$(git rev-parse --short HEAD)
-  if [[ $(docker images --format '{{.Repository}}:{{.Tag}}' |\
-  grep "${GIT_COMMIT}-${USR_OR_ROOT}" -c) -ge 1 ]]; then
-    docker tag "${IMAGE_NAME}:run-${GIT_COMMIT}-${USR_OR_ROOT}" \
-      "${PUSH_IMAGE_NAME}:run-${GIT_COMMIT}-${USR_OR_ROOT}"
-    docker push "${PUSH_IMAGE_NAME}:run-${GIT_COMMIT}-${USR_OR_ROOT}"
+  # GIT_COMMIT=$(git rev-parse --short HEAD)
+  # if [[ $(docker images --format '{{.Repository}}:{{.Tag}}' |\
+  # grep "${GIT_COMMIT}-${USR_OR_ROOT}" -c) -ge 1 ]]; then
+  #   docker tag "${IMAGE_NAME}:run-${GIT_COMMIT}-${USR_OR_ROOT}" \
+  #     "${PUSH_IMAGE_NAME}:run-${GIT_COMMIT}-${USR_OR_ROOT}"
+  #   docker push "${PUSH_IMAGE_NAME}:run-${GIT_COMMIT}-${USR_OR_ROOT}"
 
-    docker tag "${IMAGE_NAME}:dev-${GIT_COMMIT}-${USR_OR_ROOT}" \
-      "${PUSH_IMAGE_NAME}:dev-${GIT_COMMIT}-${USR_OR_ROOT}"
-    docker push "${PUSH_IMAGE_NAME}:dev-${GIT_COMMIT}-${USR_OR_ROOT}"
-  fi
+  #   docker tag "${IMAGE_NAME}:dev-${GIT_COMMIT}-${USR_OR_ROOT}" \
+  #     "${PUSH_IMAGE_NAME}:dev-${GIT_COMMIT}-${USR_OR_ROOT}"
+  #   docker push "${PUSH_IMAGE_NAME}:dev-${GIT_COMMIT}-${USR_OR_ROOT}"
+  # fi
 }
 
 push_generic() {
