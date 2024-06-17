@@ -19,7 +19,8 @@ RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", "results"))
 
 
 def get_fshot_template():
-    fshot_instruct_template = """Given several concepts (i.e., nouns or verbs), write a short and simple sentence that contains all the required words. The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
+    fshot_instruct_template = """Given several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.
+The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
 
 Concepts: dog, frisbee, catch, throw
 Sentence: The dog catches the frisbee when the boy throws it into the air.
@@ -35,7 +36,8 @@ Sentence: A man paddles his canoe on the lake.
 
 
 def get_zshot_template():
-    zeroshot_instruct_template = """Given several concepts (i.e., nouns or verbs), write a short and simple sentence that contains all the required words. The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
+    zeroshot_instruct_template = """Given several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.
+The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
 
 {}Concepts: {}"""
     return zeroshot_instruct_template
@@ -46,6 +48,8 @@ def doc_to_chat(doc, checkpoint, zshot=True, use_chat_template=False, with_image
         template = get_zshot_template()
     else:
         template = get_fshot_template()
+    if with_image:
+        template = template.replace("Given several concepts", "Given the image and several concepts")
 
     image_token = "<image>" if with_image else ""
     prompt = template.format(image_token, ", ".join(doc["concepts"]))
@@ -156,14 +160,14 @@ def main(
     disable_tqdm=False
 ):
     checkpoints = [
-        "HuggingFaceM4/idefics2-8b",
-        "llava-hf/llava-v1.6-mistral-7b-hf",
-        "llava-hf/llava-1.5-7b-hf",
-        "llava-hf/bakLlava-v1-hf",
+        # "HuggingFaceM4/idefics2-8b",
+        # "llava-hf/llava-v1.6-mistral-7b-hf",
+        # "llava-hf/llava-1.5-7b-hf",
+        # "llava-hf/bakLlava-v1-hf",
     ]
     if image_path is None:
         checkpoints += [
-            "lmsys/vicuna-7b-v1.5",
+            # "lmsys/vicuna-7b-v1.5",
             "mistralai/Mistral-7B-Instruct-v0.2",
             "meta-llama/Meta-Llama-3-8B-Instruct",
         ]
@@ -178,19 +182,20 @@ def main(
         )
         with_image = sd_images is not None and "paligemma" not in checkpoint
         test_df = df.map(lambda x: doc_to_chat(x, checkpoint, not fshot, use_chat_template, with_image))
+        print(test_df["chat"][:3])
         predictions = run_model_inference(
-            model, processor, test_df["chat"], sd_images=sd_images, batch_size=16, disable_tqdm=disable_tqdm
+            model, processor, test_df["chat"], sd_images=sd_images, batch_size=32, disable_tqdm=disable_tqdm
         )
         del model, processor
         predictions = postprocess_predictions(predictions)
-        if debug:
-            print(predictions)
+        print(predictions[:3])
         gts, res, gts_bert, res_bert = prepare_for_eval(predictions, test_df)
         metrics = evaluator(gts, res)
         metrics['BERTScore'] = compute_bertscore(cand_list=res_bert, refer_list=gts_bert)
         metrics = {k: str(round(v*100, 2)) if k != "CIDEr" else str(round(v*10, 2)) for k, v in metrics.items()}
         results[checkpoint] = metrics
         print(checkpoint, metrics)
+    raise NotImplementedError
 
     if not debug:
         if results_path is None:
