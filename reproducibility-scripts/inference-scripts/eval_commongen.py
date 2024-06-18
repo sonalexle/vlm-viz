@@ -56,7 +56,9 @@ def doc_to_chat(doc, checkpoint, zshot=True, use_chat_template=False, with_image
     if use_chat_template:
         if "<image>" in prompt:
             prompt = prompt.replace("<image>", "")
-        chat = apply_chat_template(prompt, checkpoint, with_image=with_image) + " Sentence:"
+        chat = apply_chat_template(prompt, checkpoint, with_image=with_image)
+        chat += "" if chat.endswith("\n") else " "
+        chat += "Sentence:"
     else:
         if "<image>" in prompt:
             prompt = prompt.replace("<image>", "<image>\n")
@@ -89,8 +91,8 @@ def run_model_inference(model, processor, prompts, sd_images=None, batch_size=16
 
     generation_kwargs = dict(
         max_new_tokens=100,
-        do_sample=True,
-        temperature=0.6, top_p=0.9,
+        # do_sample=True,
+        # temperature=0.6, top_p=0.9,
         pad_token_id=get_pad_token_id(processor),
     )
     if "Llama-3" in tokenizer.name_or_path:
@@ -118,6 +120,9 @@ def run_model_inference(model, processor, prompts, sd_images=None, batch_size=16
 
 
 def postprocess_predictions(predictions):
+    # Get rid of unnecessary generations after the prediction of the sentence
+    # if we don't do this, the evaluation function crashes with an error
+    # even when using few-shot prompting
     def remove_quotations(sent):
         # check if the sentence is wrapped in "" or '' and ends with full stop: ".", ""., '.', ''.
         if (sent.startswith('"') and (sent.endswith('".') or sent.endswith('."'))) or (sent.startswith("'") and (sent.endswith("'.") or sent.endswith(".'"))):
@@ -160,14 +165,14 @@ def main(
     disable_tqdm=False
 ):
     checkpoints = [
-        # "HuggingFaceM4/idefics2-8b",
-        # "llava-hf/llava-v1.6-mistral-7b-hf",
-        # "llava-hf/llava-1.5-7b-hf",
-        # "llava-hf/bakLlava-v1-hf",
+        "HuggingFaceM4/idefics2-8b",
+        "llava-hf/llava-v1.6-mistral-7b-hf",
+        "llava-hf/llava-1.5-7b-hf",
+        "llava-hf/bakLlava-v1-hf",
     ]
     if image_path is None:
         checkpoints += [
-            # "lmsys/vicuna-7b-v1.5",
+            "lmsys/vicuna-7b-v1.5",
             "mistralai/Mistral-7B-Instruct-v0.2",
             "meta-llama/Meta-Llama-3-8B-Instruct",
         ]
@@ -186,16 +191,15 @@ def main(
         predictions = run_model_inference(
             model, processor, test_df["chat"], sd_images=sd_images, batch_size=32, disable_tqdm=disable_tqdm
         )
+        print(predictions[:3])
         del model, processor
         predictions = postprocess_predictions(predictions)
-        print(predictions[:3])
         gts, res, gts_bert, res_bert = prepare_for_eval(predictions, test_df)
         metrics = evaluator(gts, res)
         metrics['BERTScore'] = compute_bertscore(cand_list=res_bert, refer_list=gts_bert)
         metrics = {k: str(round(v*100, 2)) if k != "CIDEr" else str(round(v*10, 2)) for k, v in metrics.items()}
         results[checkpoint] = metrics
         print(checkpoint, metrics)
-    raise NotImplementedError
 
     if not debug:
         if results_path is None:

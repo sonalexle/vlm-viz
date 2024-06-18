@@ -7,21 +7,24 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import f1_score, accuracy_score
-torch.backends.cuda.matmul.allow_tf32 = True
 
 from vlm_viz.utils.model_utils import (
     load_model_and_processor, get_sd_images, apply_chat_template,
     get_pad_token_id, postprocess_output_ids, seed_all
 )
 
+torch.backends.cuda.matmul.allow_tf32 = True
+BASE_DATA_DIR = Path("../..") / "data" / "coarse-wsd-20" # assuming the data is in the parent directory of the project root
 RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", "results"))
 
 
-def load_coarsewsd(data_root="/nlp-rcp-scratch/home/le/data/coarse-wsd-20", split="test"):
-    with open(os.path.join(data_root, 'word-senses-short.json'), 'r') as f:
+def load_coarsewsd(data_folder=None, split="test"):
+    if data_folder is None:
+        data_folder = BASE_DATA_DIR
+    with open(os.path.join(data_folder, 'word-senses-short.json'), 'r') as f:
         wordsenses = json.load(f)
 
-    with open(os.path.join(data_root, f'coarse-wsd-{split}.jsonl'), 'r') as f:
+    with open(os.path.join(data_folder, f'coarse-wsd-{split}.jsonl'), 'r') as f:
         coarsewsd = [json.loads(line) for line in f]
 
     return wordsenses, coarsewsd
@@ -44,7 +47,7 @@ def get_mcqa_prompts(wordsenses, test_instances, with_image=False, use_chat_temp
         prompt = instruction + prompt
         for idx in range(len(senses)):
             choice = chr(ord('A') + idx)
-            prompt += "({}) {}\n".format(choice, senses[str(idx)])
+            prompt += "({}) {}\n".format(choice, senses[str(idx)]) # data format: {0: sense1, 1: sense2, ...}
         prompt += "Only give the best option among the given choices."
         if use_chat_template:
             prompt = apply_chat_template(prompt, checkpoint, with_image=with_image)
@@ -121,7 +124,7 @@ def get_metrics(word2preds, word2labels):
     return f1, accuracy
 
 
-def main(results_path=None, image_path=None, use_chat_template=False, debug=False, disable_tqdm=False):
+def main(data_folder=None, results_path=None, image_path=None, use_chat_template=False, debug=False, disable_tqdm=False):
     checkpoints = [
         "HuggingFaceM4/idefics2-8b",
         "llava-hf/llava-v1.6-mistral-7b-hf",
@@ -136,7 +139,7 @@ def main(results_path=None, image_path=None, use_chat_template=False, debug=Fals
         ]
 
     sd_images = get_sd_images(image_path) if image_path is not None else None
-    wordsenses, coarsewsd = load_coarsewsd()
+    wordsenses, coarsewsd = load_coarsewsd(data_folder)
     if debug:
         coarsewsd, sd_images = get_debug_data(coarsewsd, sd_images)
     words = sorted(list(set([sample["word"] for sample in coarsewsd])))
@@ -180,6 +183,7 @@ def main(results_path=None, image_path=None, use_chat_template=False, debug=Fals
 if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
+    parser.add_argument("--data-folder", type=str, default=None)
     parser.add_argument("--results-path", type=str, default=None)
     parser.add_argument("--image-path", type=str, default=None)
     parser.add_argument("--use-chat-template", action="store_true", default=False)
@@ -187,7 +191,10 @@ if __name__ == "__main__":
     parser.add_argument("--disable-tqdm", action="store_true", default=False)
     args = parser.parse_args()
     main(
-        args.results_path, image_path=args.image_path,
-        use_chat_template=args.use_chat_template, debug=args.debug,
+        data_folder=args.data_folder,
+        results_path=args.results_path,
+        image_path=args.image_path,
+        use_chat_template=args.use_chat_template,
+        debug=args.debug,
         disable_tqdm=args.disable_tqdm
     )

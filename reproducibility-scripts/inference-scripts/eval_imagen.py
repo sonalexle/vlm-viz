@@ -14,6 +14,12 @@ from vlm_viz.utils.model_utils import (
     seed_all, load_model_and_processor, get_pad_token_id,
     apply_chat_template, postprocess_output_ids
 )
+from eval_harness_loglik import get_harness_data
+from eval_harness_mcqa import get_harness_hf_data
+from eval_coarsewsd import load_coarsewsd, get_debug_data
+from eval_commongen import load_commongen
+from eval_dust import load_exp1_data
+from eval_ambient import load_ambient_TF
 
 ARTIFACTS_DIR = Path(os.environ.get("ARTIFACTS_DIR", "data"))
 HF_TOKEN = os.environ.get("HF_TOKEN") or Path('.hf_token').read_text().strip()
@@ -129,13 +135,25 @@ Prompt: A photo of a magnet separating iron filings from a small pile of black p
 Context: Question: When ice cream is left out of a freezer, the ice cream changes from a? Answer: solid to a liquid.
 Prompt: A photo of a cup of melting ice cream, kitchen scene, detailed, shutterstock.
 
+Context: how does the sun help plants grow?
+Prompt: A photo of a plant growing towards the sun, garden scene, detailed, shutterstock.
+
+Context: to eat a sandwich, you need to use your teeth to bite and chew the food.
+Prompt: A photo of a person biting into a sandwich, close-up, detailed, shutterstock.
+
 Context: {}
 Prompt:"""
     return instruct_template
 
 
-def run_llama3_prompt_generation(instructions, checkpoint, batch_size=16, postprocess=True, disable_tqdm=False):
-    assert checkpoint == "meta-llama/Meta-Llama-3-8B-Instruct", "Only Meta-Llama-3-8B-Instruct is supported for prompt generation."
+def run_llama3_prompt_generation(
+    instructions, checkpoint,
+    batch_size=16, postprocess=True,
+    disable_tqdm=False
+):
+    assert checkpoint == "meta-llama/Meta-Llama-3-8B-Instruct",\
+            "Only Meta-Llama-3-8B-Instruct is supported for prompt generation."
+
     model, tokenizer = load_model_and_processor(checkpoint, padding_side="left", use_flash_attn=True)
     diffusion_prompts = []
 
@@ -156,6 +174,7 @@ def run_llama3_prompt_generation(instructions, checkpoint, batch_size=16, postpr
         generation_kwargs["eos_token_id"] = terminators
 
     seed_all()
+    print(f"Generating SD prompts with {checkpoint}...")
     for batch in tqdm(dataloader, disable=disable_tqdm):
         inputs = tokenizer(batch, padding=batch_size>1, return_tensors="pt").to(model.device)
 
@@ -204,8 +223,13 @@ def save_harness_sd_artifacts(prompt_or_image_list, df, task, dataset_name, kind
         pickle.dump(sd_arts_by_doc, f)
 
 
-def get_evalharness_data(dataset_name, use_promptgen=False, use_prompt_cache=False, debug=False, disable_tqdm=False):
-    from eval_harness_acc_loglik import get_harness_data
+def get_evalharness_data(
+    dataset_name, use_promptgen=False,
+    use_prompt_cache=False,
+    context_type="both", # choose from context, continuation, both
+    debug=False, disable_tqdm=False
+):
+    assert context_type in ["context", "continuation", "both"]
     eval_tasks, requests, limit, task_dict_orig = get_harness_data(dataset_name=dataset_name)
 
     df_dict = {"doc_id": [], "idx": [], "context": [], "continuation": []}
@@ -219,10 +243,14 @@ def get_evalharness_data(dataset_name, use_promptgen=False, use_prompt_cache=Fal
             break
     df = datasets.Dataset.from_dict(df_dict)
     task = eval_tasks[0].task
-    prompt_cache_dir = ARTIFACTS_DIR / f'{dataset_name}-sd_prompts_llama3.pkl'
 
+    context_fn = lambda doc: doc["context"] + doc["continuation"] if context_type == "both" else \
+        doc["context"].replace("Question: ", "").replace("\nAnswer:", "") if context_type == "context" \
+            else doc["continuation"]
+
+    prompt_cache_dir = ARTIFACTS_DIR / f'{dataset_name}-sd_prompts_llama3.pkl'
     if not use_promptgen:
-        diffusion_prompts = ["A photo of" + c.lower() for c in df["continuation"]]
+        diffusion_prompts = ["A photo of " + context_fn(c)for c in df]
     elif use_prompt_cache:
         with open(prompt_cache_dir, "rb") as f:
             prompts_by_doc = pickle.load(f)
@@ -234,7 +262,7 @@ def get_evalharness_data(dataset_name, use_promptgen=False, use_prompt_cache=Fal
     else:
         checkpoint = "meta-llama/Meta-Llama-3-8B-Instruct"
         llama3_instruction = get_promptgen_instruction()
-        format_fn = lambda doc: {"llama3_prompt": apply_chat_template(llama3_instruction.format(doc["context"] + doc["continuation"]), checkpoint) + "A photo of"}
+        format_fn = lambda doc: {"llama3_prompt": apply_chat_template(llama3_instruction.format(context_fn(doc)), checkpoint) + "A photo of"}
         diffusion_prompts = run_llama3_prompt_generation(df.map(format_fn, num_proc=10)["llama3_prompt"], checkpoint, disable_tqdm=disable_tqdm)
         if not debug:
             os.makedirs(ARTIFACTS_DIR, exist_ok=True)
@@ -243,8 +271,45 @@ def get_evalharness_data(dataset_name, use_promptgen=False, use_prompt_cache=Fal
     return diffusion_prompts, df, task
 
 
+def get_harness_hf_prompts(
+    dataset_name, use_promptgen=False,
+    use_prompt_cache=False,
+    debug=False, disable_tqdm=False
+):
+    assert dataset_name in["hf_piqa", "hf_arc_easy", "hf_arc_challenge"]
+    dataset_name = dataset_name[3:]
+
+    df = get_harness_hf_data(dataset_name)
+    contexts = df["question"]
+
+    prompt_cache_dir = ARTIFACTS_DIR / f'hf_{dataset_name}-sd_prompts_single_llama3.pkl'
+    if not use_promptgen:
+        diffusion_prompts = ["A photo of " + c for c in contexts]
+    elif use_prompt_cache:
+        with open(prompt_cache_dir, "rb") as f:
+            prompts_by_doc = pickle.load(f)
+        assert len(prompts_by_doc) == len(contexts)
+        diffusion_prompts = []
+        for i, prompt in enumerate(prompts_by_doc):
+            assert isinstance(prompt, str)
+            diffusion_prompts.append(prompt)
+            if debug and i == 50:
+                break
+    else:
+        checkpoint = "meta-llama/Meta-Llama-3-8B-Instruct"
+        llama3_instruction = get_promptgen_instruction()
+        format_fn = lambda doc: apply_chat_template(llama3_instruction.format(doc), checkpoint) + "A photo of"
+        contexts = list(map(format_fn, contexts))
+        diffusion_prompts = run_llama3_prompt_generation(contexts, checkpoint, disable_tqdm=disable_tqdm)
+        if not debug:
+            os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+            with open(prompt_cache_dir, "wb") as f:
+                pickle.dump(diffusion_prompts, f)
+
+    return diffusion_prompts, df
+
+
 def get_coarsewsd_data(split="test", debug=False):
-    from eval_coarsewsd import load_coarsewsd, get_debug_data
     _, prompts = load_coarsewsd(split=split)
     assert [u['uid'] for u in prompts] == sorted([u['uid'] for u in prompts])
     if debug:
@@ -254,7 +319,6 @@ def get_coarsewsd_data(split="test", debug=False):
 
 
 def get_ambient_data(split="dev", debug=False):
-    from eval_ambient import load_ambient_TF
     _, test_instances, _, _, _ = load_ambient_TF(split)
     prompts = [t["ambiguous_sentence"] for t in test_instances]
     if debug:
@@ -263,7 +327,6 @@ def get_ambient_data(split="dev", debug=False):
 
 
 def get_commongen_data(split="validation"):
-    from eval_commongen import load_commongen
     df = load_commongen(split=split)
     concepts = df["concepts"] # list of lists of concepts, may be repeated
     unique_concepts = set() # set of unique concepts
@@ -285,7 +348,6 @@ def save_commongen_images(images, prompts):
 
 
 def get_dust_data(debug=False):
-    from eval_dust import load_exp1_data
     exp1_data, _, _, _ = load_exp1_data()
     prompts = exp1_data["underspecified sentence"].tolist()
     if debug:
@@ -299,7 +361,8 @@ def validate_dataset_choice(dataset):
         "ambient_dev", "ambient_test",
         "dust",
         "commongen_train", "commongen_validation", "commongen_test",
-        "piqa", "arc_easy", "arc_challenge"
+        "piqa", "arc_easy", "arc_challenge",
+        "hf_piqa", "hf_arc_easy", "hf_arc_challenge"
     ], f"Unsupported dataset: {dataset}"
 
 
@@ -382,19 +445,17 @@ def run_coarsewsd_senses(pipe, results_path=None):
 
 def main(
     dataset: str, model="sdxl-turbo", results_path=None,
-    harness_use_promptgen=False, harness_use_prompt_cache=False,
+    harness_use_promptgen=False, harness_use_prompt_cache=False, harness_context_type="both",
     debug=False, disable_tqdm=False
 ):
     assert model in ["sdxl-turbo", "pixart-sigma", "sd3"], f"Unsupported model: {model}"
     validate_dataset_choice(dataset)
 
-    pipe = load_pipe(model, compiled=True)
-
-    if dataset == "coarsewsd_senses":
-        run_coarsewsd_senses(pipe, results_path)
-
     use_harness = dataset in ["piqa", "arc_easy", "arc_challenge"]
-    if dataset == "coarsewsd":
+    use_hf_harness = dataset in ["hf_piqa", "hf_arc_easy", "hf_arc_challenge"]
+    if dataset == "coarsewsd_senses":
+        pass
+    elif dataset == "coarsewsd":
         prompts = get_coarsewsd_data(debug)
     elif "ambient" in dataset:
         assert dataset in ["ambient_dev", "ambient_test"]
@@ -410,17 +471,32 @@ def main(
         prompts, harness_df, harness_task = get_evalharness_data(
             dataset, use_promptgen=harness_use_promptgen,
             use_prompt_cache=harness_use_prompt_cache,
+            context_type=harness_context_type,
+            debug=debug, disable_tqdm=disable_tqdm
+        )
+    elif use_hf_harness:
+        prompts, hf_df = get_harness_hf_prompts(
+            dataset, use_promptgen=harness_use_promptgen,
+            use_prompt_cache=harness_use_prompt_cache,
             debug=debug, disable_tqdm=disable_tqdm
         )
     else:
         raise NotImplementedError(f"Unsupported dataset: {dataset}")
+    
+    print(prompts[:10])
+
+    pipe = load_pipe(model, compiled=True)
+
+    if dataset == "coarsewsd_senses":
+        run_coarsewsd_senses(pipe, results_path)
+        return
 
     images, final_batch = run_model_inference(prompts, pipe, batch_size=16)
 
     should_run_final_batch = final_batch is not None
     if should_run_final_batch:
         print("Running final batch with uncompiled pipe...")
-        del pipe # compiled models cannot run the last batch as it has a different length to the rest
+        del pipe # a compiled model cannot run the last batch as it has a different length to the rest
         # so we need to run the last batch separately with a new uncompiled pipe
         pipe = load_pipe(model, compiled=False)
         images.extend(run_final_batch(pipe, final_batch))
@@ -448,12 +524,13 @@ if __name__ == "__main__":
     parser.add_argument("--results-path", type=str, default=None)
     parser.add_argument("--harness-use-promptgen", action="store_true", default=False)
     parser.add_argument("--harness-use-prompt-cache", action="store_true", default=False)
+    parser.add_argument("--harness-context-type", type=str, default="both")
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--disable-tqdm", action="store_true", default=False)
     args = parser.parse_args()
 
     main(
         args.dataset, args.model, args.results_path,
-        args.harness_use_promptgen, args.harness_use_prompt_cache,
+        args.harness_use_promptgen, args.harness_use_prompt_cache, args.harness_context_type,
         args.debug, args.disable_tqdm
     )

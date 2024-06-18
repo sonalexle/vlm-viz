@@ -54,6 +54,7 @@ def get_pad_token_id(processor):
 
 
 def postprocess_output_ids(input_ids, output_ids, tokenizer):
+    "For causal LMs, this function removes the input tokens from the output_ids and decodes the output_ids."
     input_token_len = input_ids.shape[1]
     n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
     if n_diff_input_output > 0:
@@ -330,5 +331,6 @@ def apply_chat_template(prompt, checkpoint, with_image=False):
         template = '<bos><start_of_turn>user\n{}{}<end_of_turn>\n<start_of_turn>model\n'
         image_token = ""
     else:
-        raise NotImplementedError(f"Chat template not implemented for checkpoint {checkpoint}")
+        print(f"Chat template not implemented for checkpoint {checkpoint}, using a blank template...")
+        template = "{}{}"
     return template.format(image_token, prompt)
