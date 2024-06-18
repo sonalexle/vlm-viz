@@ -87,6 +87,7 @@ def run_model_inference(model, processor, dataset, concept2image=None, batch_siz
                 images = [[im] for im in images]
             kwargs["images"] = images
         inputs = processor(batch["text"], **kwargs)
+        if "pixel_values" in inputs and inputs["pixel_values"] is None: del inputs["pixel_values"]
         inputs = inputs.to(model.device)
         with torch.inference_mode():
             output_ids = model.generate(**inputs, **generation_kwargs)
@@ -147,7 +148,7 @@ def main(base_data_dir, model_name=None, checkpoint=None, tokenizer_checkpoint=N
     prompt_template = '# Instruction\n\nGiven several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.\n'
     if with_image:
         prompt_template = prompt_template.replace("Given several concepts", "Given the image and several concepts")
-    prompt_template += 'The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n# Your Task \n\n- Concepts: "{}"\n- Sentence:'
+    prompt_template += 'The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n# Your Task\n\n- Concepts: "{}"\n- Sentence:'
     if "pali" not in checkpoint:
         prompt_template = apply_chat_template(prompt_template, tokenizer_checkpoint, with_image=with_image)
     if "pali" in checkpoint and not with_image:
@@ -160,7 +161,7 @@ def main(base_data_dir, model_name=None, checkpoint=None, tokenizer_checkpoint=N
     )
     print(dataset["text"][:5])
 
-    preds = run_model_inference(model, processor, dataset, concept2image=concept2image, batch_size=4)
+    preds = run_model_inference(model, processor, dataset, concept2image=concept2image, batch_size=16)
 
     print("NOTE: Inference loop completed.")
     print(preds[:10])
