@@ -12,7 +12,7 @@ from vlm_viz.utils.model_utils import (
     get_pad_token_id, postprocess_output_ids
 )
 from vlm_viz.utils.eval_utils import evaluator as commongen_evaluator
-from sft_mllm import prepare_dataset_for_inference
+from sft_mllm import prepare_dataset_for_inference, get_instruct_template
 
 
 CHECKPOINT_FOLDER = Path(os.environ.get("CHECKPOINT_FOLDER", "outputs/commongen-checkpoints"))
@@ -97,6 +97,27 @@ def run_model_inference(model, processor, dataset, concept2image=None, batch_siz
     return predictions
 
 
+def postprocess_predictions(predictions):
+    # Get rid of unnecessary generations after the prediction of the sentence
+    # if we don't do this, the evaluation function crashes with an error
+    # even when using few-shot prompting
+    def remove_quotations(sent):
+        # check if the sentence is wrapped in "" or '' and ends with full stop: ".", ""., '.', ''.
+        if (sent.startswith('"') and (sent.endswith('".') or sent.endswith('."'))) or (sent.startswith("'") and (sent.endswith("'.") or sent.endswith(".'"))):
+            sent = sent[1:-2]
+        if not sent.endswith('.'):
+            sent += '.'
+        return sent
+
+    cleaned_predictions = []
+    for i, p in enumerate(predictions):
+        if "\n" in p:
+            p = p.split("\n")[0]
+        p = remove_quotations(p)
+        cleaned_predictions.append(p)
+    return cleaned_predictions
+
+
 def process_prediction_output(concept_list, pred_list, ref_list, remove_repeat=True, with_bertscore=False):
     assert len(concept_list) == len(pred_list) == len(ref_list)
     print(f'#raw_pred = {len(pred_list)}\t#raw_gt = {len(ref_list)}')
@@ -118,7 +139,7 @@ def process_prediction_output(concept_list, pred_list, ref_list, remove_repeat=T
     return retval
 
 
-def main(base_data_dir, model_name=None, checkpoint=None, tokenizer_checkpoint=None, half_precision=False):
+def main(base_data_dir, model_name=None, checkpoint=None, tokenizer_checkpoint=None, use_chat_template=False, half_precision=False):
     if model_name is not None:
         checkpoint, tokenizer_checkpoint = get_checkpoint(model_name)
     else:
@@ -145,12 +166,11 @@ def main(base_data_dir, model_name=None, checkpoint=None, tokenizer_checkpoint=N
         if "pali" in checkpoint:
             tokenizer.add_bos_token = True
 
-    prompt_template = '# Instruction\n\nGiven several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.\n'
-    if with_image:
-        prompt_template = prompt_template.replace("Given several concepts", "Given the image and several concepts")
-    prompt_template += 'The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n# Your Task\n\n- Concepts: "{}"\n- Sentence:'
-    if "pali" not in checkpoint:
-        prompt_template = apply_chat_template(prompt_template, tokenizer_checkpoint, with_image=with_image)
+    prompt_template = get_instruct_template(fshot=False, with_image=with_image)
+    if "pali" not in checkpoint and use_chat_template:
+            prompt_template = apply_chat_template(prompt_template, tokenizer_checkpoint, with_image=False)
+        # elif with_image:
+        #     prompt_template = "<image>\n" + prompt_template
     if "pali" in checkpoint and not with_image:
         prompt_template += "\n" # paligemma was trained with the newline, but unlike the processor, the tokenizer does not append '\n' automatically
     dataset, concept2image = prepare_dataset_for_inference(
@@ -161,7 +181,9 @@ def main(base_data_dir, model_name=None, checkpoint=None, tokenizer_checkpoint=N
     )
     print(dataset["text"][:5])
 
-    preds = run_model_inference(model, processor, dataset, concept2image=concept2image, batch_size=16)
+    preds = run_model_inference(model, processor, dataset, concept2image=concept2image, batch_size=32)
+
+    # preds = postprocess_predictions(preds)
 
     print("NOTE: Inference loop completed.")
     print(preds[:10])
@@ -184,6 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-name", type=str, default=None)
     parser.add_argument("--checkpoint", type=str, default=None)
     parser.add_argument("--tokenizer-checkpoint", type=str, default=None)
+    parser.add_argument("--use-chat-template", action="store_true", default=False)
     parser.add_argument("--half-precision", action="store_true", default=False)
     args = parser.parse_args()
 
@@ -194,7 +217,11 @@ if __name__ == "__main__":
         all_metrics = {}
         for model_name in model_names:
             checkpoint, tokenizer_checkpoint = get_checkpoint(model_name)
-            metrics = main(base_data_dir=args.base_data_dir, model_name=model_name, half_precision=args.half_precision)
+            metrics = main(
+                base_data_dir=args.base_data_dir, model_name=model_name,
+                use_chat_template=args.use_chat_template,
+                half_precision=args.half_precision
+            )
             all_metrics[model_name] = metrics
         results_path = RESULTS_DIR / "commongen_finetune-results.json"
         with open(results_path, "w") as f:
@@ -205,5 +232,6 @@ if __name__ == "__main__":
             args.model_name,
             args.checkpoint,
             args.tokenizer_checkpoint,
+            args.use_chat_template,
             args.half_precision
         )

@@ -8,7 +8,6 @@ import os
 import random
 from vlm_viz.utils.model_utils import (
     load_model_and_processor,
-    get_pad_token_id, postprocess_output_ids,
 )
 from params import parse_args
 
@@ -23,7 +22,7 @@ instruction_bank = [
     'Make a sentence that includes these words and sounds like normal speech: {}',
     'Write a sentence that flows naturally and features these keywords "{}"',
     'Generate a sentence that naturally uses these concepts in a human-like manner: {}',
-    '# Instruction\n\nGiven several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.\nThe sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n# Your Task \n\n- Concepts: "{}"\n- Sentence:'
+    '# Instruction\n\nGiven several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.\nThe sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n# Your Task\n\n- Concepts: "{}"\n- Sentence:'
 ]
 
 
@@ -42,6 +41,9 @@ def load_raw_dataset(
     dataset='commongen_inhouse',
     phases=['train', 'validation', 'test']
 ):
+    # if base_data_dir is a relative path, make it absolute
+    if not os.path.isabs(base_data_dir):
+        base_data_dir = os.path.abspath(base_data_dir)
     base_dir = os.path.join(base_data_dir, task, dataset)
     kwargs = {}
     if isinstance(phases, list):

@@ -56,7 +56,7 @@ class DataArguments:
         metadata={"help": "The task to train on."}
     )
     dataset: str = field(
-        default="commongen",
+        default="commongen_inhouse",
         metadata={"help": "The dataset to train on."}
     )
     double_data: bool = field(
@@ -66,6 +66,10 @@ class DataArguments:
     on_completions_only: Optional[bool] = field(
         default=False,
         metadata={"help": "Only compute loss on assistant tokens."}
+    )
+    use_chat_template: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Use instruct chat template (user, assistant) or not."}
     )
     debug_mode: Optional[bool] = field(
         default=False,
@@ -92,6 +96,7 @@ class MyTrainingArguments(SFTConfig):
     learning_rate: float = field(default=1e-5, metadata={"help": 'The initial learning rate'})
     warmup_ratio: float = field(default=0.1, metadata={"help": 'The ratio of the total steps to perform linear learning rate warmup for'})
     weight_decay: float = field(default=1e-3, metadata={"help": 'The weight decay to apply (if any)'})
+    lr_scheduler_type: str = field(default='linear', metadata={"help": 'The learning rate scheduler to use (usually linear or cosine)'})
 
     num_train_epochs: int = field(default=1, metadata={"help": 'The number of epochs to train'})
     per_device_train_batch_size: int = field(default=4, metadata={"help": 'The training batch size per GPU'})

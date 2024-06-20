@@ -5,7 +5,7 @@ from PIL import Image
 from transformers import Trainer, DataCollatorForLanguageModeling
 from trl import SFTTrainer
 
-from vlm_viz.utils.model_utils import load_model_and_processor
+from vlm_viz.utils.model_utils import load_model_and_processor, apply_chat_template
 from sft import load_raw_dataset, get_peft_config
 from params import parse_args, IMAGE_FOLDER
 
@@ -13,16 +13,26 @@ from params import parse_args, IMAGE_FOLDER
 COMMONGEN_IMAGE_PATH = os.path.join(IMAGE_FOLDER, "commongen_{}-sd_images.pkl")
 
 
-def get_instruction_template():
-    return """# Instruction
-
-Given the image and several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.
-The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
-
-# Your Task
-
-- Concepts: "{}"
-- Sentence:"""
+def get_instruct_template(fshot=True, with_image=False):
+    instruct_template = '# Instruction\n\nGiven several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.\n'
+    if with_image:
+        instruct_template = "<image>\n" + instruct_template
+        instruct_template = instruct_template.replace("Given several concepts", "Given the image and several concepts")
+    instruct_template += 'The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n'
+    if fshot:
+        instruct_template += '# Examples\n\n## Example 1\n'
+        instruct_template += '- Concepts: "dog, frisbee, catch, throw"\n'
+        instruct_template += '- The dog catches the frisbee when the boy throws it into the air.\n\n'
+        instruct_template += '## Example 2\n'
+        instruct_template += '- Concepts: "apple, place, tree, pick"\n'
+        instruct_template += '- Sentence: A girl picks some apples from a tree and places them into her basket.\n'
+        instruct_template += '## Example 3\n'
+        instruct_template += '- Concepts: "canoe, lake, paddle"\n'
+        instruct_template += '- Sentence: A man paddles his canoe on the lake.\n\n'
+    instruct_template += '# Your Task\n\n'
+    instruct_template += '- Concepts: "{}"\n'
+    instruct_template += '- Sentence:'
+    return instruct_template
 
 
 def load_pickled_images(pth):
@@ -38,7 +48,7 @@ def prepare_dataset_for_inference(
     dataset: str = 'commongen_inhouse',
     split: str = 'test',
     with_image=True,
-    prompt_template='concepts "{}" sentence\n'
+    prompt_template=None
 ):
     dataset = load_raw_dataset(
         base_data_dir,
@@ -64,7 +74,7 @@ class MLLMDataCollator(DataCollatorForLanguageModeling):
         self,
         processor,
         is_paligemma=False,
-        chat_template="",
+        use_chat_template_model=None,
         ignore_index=-100,
         eos_token=None,
         *args,
@@ -73,7 +83,7 @@ class MLLMDataCollator(DataCollatorForLanguageModeling):
         super().__init__(*args, **kwargs)
         self.processor = processor
         self.is_paligemma = is_paligemma
-        self.chat_template = chat_template
+        self.use_chat_template_model = use_chat_template_model
         self.ignore_index = ignore_index
         if eos_token is None:
             self.eos_token = processor.tokenizer.eos_token
@@ -82,11 +92,13 @@ class MLLMDataCollator(DataCollatorForLanguageModeling):
 
     def example2text(self, example):
         concepts = ", ".join(example["concepts"])
-        text = get_instruction_template().format(concepts)
-        text = self.chat_template.format(text)
+        text = get_instruct_template(fshot=False, with_image=True).format(concepts)
+        if self.use_chat_template_model:
+            text = apply_chat_template(text, self.use_chat_template_model, with_image=False)
         if not self.is_paligemma: # note paligemma handles the target differently and it adds the eos token automatically
             assert text.endswith(":"), "only support chat templates that end with a colon"
-            text += f" {example['target']}"
+            text += "" if text.endswith("\n") else " "
+            text += example['target']
             text += self.eos_token # need to add eos_token for non-chat models (those without an end of turn token)
         return text
 
@@ -131,21 +143,23 @@ def freeze_modules(model, model_args):
 
     for param in vision_tower.parameters():
         param.requires_grad = not model_args.freeze_vision_tower
+    vision_tower.eval()
 
     for param in projector.parameters():
         param.requires_grad = not model_args.freeze_projector
+    projector.eval()
 
 
-def get_chat_template(model_name_or_path):
-    if "paligemma" in model_name_or_path:
-        template = "{}"
-    elif "llava" in model_name_or_path or "bakLlava" in model_name_or_path:
-        template = "USER: <image>\n{}\nASSISTANT:"
-    elif "HuggingFaceM4/idefics2-8b" == model_name_or_path:
-        template = 'User:<image>{}<end_of_utterance>\nAssistant:'
-    else:
-        raise NotImplementedError
-    return template
+# def get_chat_template(model_name_or_path):
+#     if "paligemma" in model_name_or_path:
+#         template = "{}"
+#     elif "llava" in model_name_or_path or "bakLlava" in model_name_or_path:
+#         template = "USER: <image>\n{}\nASSISTANT:"
+#     elif "HuggingFaceM4/idefics2-8b" == model_name_or_path:
+#         template = 'User:<image>{}<end_of_utterance>\nAssistant:'
+#     else:
+#         raise NotImplementedError
+#     return template
 
 
 def main():
@@ -190,10 +204,11 @@ def main():
 
     kwargs = {
         "is_paligemma": "paligemma" in model_args.model_name_or_path,
-        "chat_template": get_chat_template(model_args.model_name_or_path),
     }
-    if "HuggingFaceM4/idefics2-8b" == model_args.model_name_or_path:
-        kwargs["eos_token"] = "<end_of_utterance>"
+    if data_args.use_chat_template:
+        kwargs["use_chat_template_model"] = model_args.model_name_or_path
+        if "HuggingFaceM4/idefics2-8b" == model_args.model_name_or_path:
+            kwargs["eos_token"] = "<end_of_utterance>"
 
 
     collator = MLLMDataCollator(
