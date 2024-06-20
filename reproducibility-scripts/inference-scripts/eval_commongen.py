@@ -18,52 +18,34 @@ from vlm_viz.utils.eval_utils import evaluator, compute_bertscore
 RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", "results"))
 
 
-def get_fshot_template():
-    fshot_instruct_template = """Given several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.
-The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
-
-Concepts: dog, frisbee, catch, throw
-Sentence: The dog catches the frisbee when the boy throws it into the air.
-
-Concepts: apple, place, tree, pick
-Sentence: A girl picks some apples from a tree and places them into her basket.
-
-Concepts: canoe, lake, paddle
-Sentence: A man paddles his canoe on the lake.
-
-{}Concepts: {}"""
-    return fshot_instruct_template
-
-
-def get_zshot_template():
-    zeroshot_instruct_template = """Given several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.
-The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.
-
-{}Concepts: {}"""
-    return zeroshot_instruct_template
+def get_instruct_template(fshot=True, with_image=False):
+    instruct_template = '# Instruction\n\nGiven several concepts (i.e., nouns or verbs), write a short and simple sentence that contains *all* the required words.\n'
+    if with_image:
+        instruct_template = "<image>\n" + instruct_template
+        instruct_template = instruct_template.replace("Given several concepts", "Given the image and several concepts")
+    instruct_template += 'The sentence should describe a common scene in daily life, and the concepts should be used in a natural way.\n\n'
+    if fshot:
+        instruct_template += '# Examples\n\n## Example 1\n'
+        instruct_template += '- Concepts: "dog, frisbee, catch, throw"\n'
+        instruct_template += '- The dog catches the frisbee when the boy throws it into the air.\n\n'
+        instruct_template += '## Example 2\n'
+        instruct_template += '- Concepts: "apple, place, tree, pick"\n'
+        instruct_template += '- Sentence: A girl picks some apples from a tree and places them into her basket.\n'
+        instruct_template += '## Example 3\n'
+        instruct_template += '- Concepts: "canoe, lake, paddle"\n'
+        instruct_template += '- Sentence: A man paddles his canoe on the lake.\n\n'
+    instruct_template += '# Your Task\n\n'
+    instruct_template += '- Concepts: "{}"\n'
+    instruct_template += '- Sentence:'
+    return instruct_template
 
 
 def doc_to_chat(doc, checkpoint, zshot=True, use_chat_template=False, with_image=False):
-    if zshot:
-        template = get_zshot_template()
-    else:
-        template = get_fshot_template()
-    if with_image:
-        template = template.replace("Given several concepts", "Given the image and several concepts")
-
-    image_token = "<image>" if with_image else ""
-    prompt = template.format(image_token, ", ".join(doc["concepts"]))
+    template = get_instruct_template(not zshot, with_image=with_image)
+    prompt = template.format(", ".join(doc["concepts"]))
     if use_chat_template:
-        if "<image>" in prompt:
-            prompt = prompt.replace("<image>", "")
-        chat = apply_chat_template(prompt, checkpoint, with_image=with_image)
-        chat += "" if chat.endswith("\n") else " "
-        chat += "Sentence:"
-    else:
-        if "<image>" in prompt:
-            prompt = prompt.replace("<image>", "<image>\n")
-        chat = f"{prompt}\nSentence:"
-    return {"chat": chat}
+        prompt = apply_chat_template(prompt, checkpoint, with_image=False)
+    return {"chat": prompt}
 
 
 def load_commongen(dataset_name="commongen_hf", split="validation"):
@@ -91,8 +73,6 @@ def run_model_inference(model, processor, prompts, sd_images=None, batch_size=16
 
     generation_kwargs = dict(
         max_new_tokens=100,
-        # do_sample=True,
-        # temperature=0.6, top_p=0.9,
         pad_token_id=get_pad_token_id(processor),
     )
     if "Llama-3" in tokenizer.name_or_path:
@@ -125,7 +105,8 @@ def postprocess_predictions(predictions):
     # even when using few-shot prompting
     def remove_quotations(sent):
         # check if the sentence is wrapped in "" or '' and ends with full stop: ".", ""., '.', ''.
-        if (sent.startswith('"') and (sent.endswith('".') or sent.endswith('."'))) or (sent.startswith("'") and (sent.endswith("'.") or sent.endswith(".'"))):
+        if (sent.startswith('"') and (sent.endswith('".') or sent.endswith('."'))) or \
+            (sent.startswith("'") and (sent.endswith("'.") or sent.endswith(".'"))):
             sent = sent[1:-2]
         if not sent.endswith('.'):
             sent += '.'

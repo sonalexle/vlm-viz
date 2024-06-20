@@ -78,7 +78,7 @@ def load_model_and_processor(
         tokenizer_checkpoint = checkpoint
     processor_kwargs = {}
     processor_cls = AutoProcessor
-    if "llava-hf" in tokenizer_checkpoint or "idefics" in tokenizer_checkpoint:
+    if "llava-hf" in tokenizer_checkpoint or "idefics" in tokenizer_checkpoint.lower():
         model_cls = AutoModelForVision2Seq
     else:
         processor_cls = AutoTokenizer
@@ -312,7 +312,7 @@ def get_perplexity(model, processor, input_texts: Union[str, List[str]], sd_imag
 
 def apply_chat_template(prompt, checkpoint, with_image=False):
     image_token = "<image>" if with_image else ""
-    if "idefics2" in checkpoint:
+    if "idefics2" in checkpoint.lower():
         template = 'User:{}{}<end_of_utterance>\nAssistant:'
     elif "mistral" in checkpoint.lower():
         template = "[INST] {}{} [/INST]"

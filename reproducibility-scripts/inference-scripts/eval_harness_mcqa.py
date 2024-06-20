@@ -48,19 +48,19 @@ def get_mcqa_prompts(df, with_image=False, use_chat_template=False, checkpoint=N
     prompts = []
     for doc in df:
         prompt = "# Instruction\n\n"
-        prompt += "Given " + "the image " if with_image else "" +  "the following question, select the option that best answers the question."
+        prompt += "Given " + ("the image and " if with_image else "") +  "the following question, select the option that best answers the question."
         if with_image:
             prompt += " The image above provides additional context for the question, which may help you answer it."
         prompt += "\n\n"
         prompt += "# Your Task\n\n"
-        prompt = 'Question: {}\n'.format(doc['question'])
+        prompt += 'Question: {}\n'.format(doc['question'])
         choices = doc['choices']
         for idx in range(len(choices)):
             choice = chr(ord('A') + idx)
             prompt += "({}) {}\n".format(choice, choices[idx])
         if use_chat_template:
             prompt = apply_chat_template(prompt, checkpoint, with_image=with_image)
-            prompt += " "
+            prompt += " " if prompt[-1] != "\n" else ""
         else:
             if with_image:
                 prompt = "<image>\n" + prompt
@@ -72,15 +72,16 @@ def get_mcqa_prompts(df, with_image=False, use_chat_template=False, checkpoint=N
 
 def get_metrics(predictions, labels, dataset_name):
     # process the predictions so that they must be in valid labels, else Z, a dummy label (does not exist in labels)
-    valid_labels = "AB" if dataset_name == "piqa" else "ABCD"
+    valid_labels = ['A', 'B'] if dataset_name == "piqa" else ['A', 'B', 'C', 'D']
     predictions = [p if p in valid_labels else "Z" for p in predictions]
-    f1 = round(f1_score(labels, predictions, average='macro') * 100, 1)
+    f1 = round(f1_score(labels, predictions, average='macro', labels=valid_labels) * 100, 1)
     accuracy = round(accuracy_score(labels, predictions) * 100, 1)
     return f1, accuracy
 
 
 def main(dataset_name, results_path=None, image_path=None, use_chat_template=False, debug=False, disable_tqdm=False):
     checkpoints = [
+        "TIGER-Lab/Mantis-8B-Idefics2",
         "HuggingFaceM4/idefics2-8b",
         "llava-hf/llava-v1.6-mistral-7b-hf",
         "llava-hf/llava-1.5-7b-hf",
