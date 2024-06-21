@@ -128,8 +128,6 @@ def loglikelihood_tokens(
 
 
 def get_sd_images(dataset_name, image_path=None):
-    if image_path is None:
-        image_path = f"../artifacts/{dataset_name}-sd_images.pkl"
     with open(image_path, "rb") as f:
         images_by_doc = pickle.load(f)
     sd_images = []
