@@ -36,27 +36,26 @@ def get_mcqa_prompts(wordsenses, test_instances, with_image=False, use_chat_temp
         word = test_instance["word"]
         test_instance = test_instance["sentence"]
         senses = wordsenses[word]
-        instruction = 'Instruction: The word "{}" may mean one of the following: {}. '.format(word, ", ".join(senses.values()))
+        instruction = '# Instruction\n\nThe word "{}" may mean one of the following: {}. '.format(word, ", ".join(senses.values()))
         if with_image:
             instruction += 'This image illustrates the word "{}" in the sentence below. '.format(word)
-        instruction += 'Your task is to '
+        instruction += 'Given the sentence below as context, '
         if with_image:
             instruction += 'observe this image carefully, then '
-        instruction += 'read the following sentence and determine the meaning of the word "{}".\n'.format(word)
+        instruction += 'select the answer option that best describes the meaning of the word "{}" in the sentence.\n\n'.format(word)
+        instruction += "## Your Task\n\n"
         prompt = 'Sentence: {}\nQuestion: What does the word "{}" in the above sentence mean?\n'.format(test_instance, word)
         prompt = instruction + prompt
         for idx in range(len(senses)):
             choice = chr(ord('A') + idx)
             prompt += "({}) {}\n".format(choice, senses[str(idx)]) # data format: {0: sense1, 1: sense2, ...}
-        prompt += "Only give the best option among the given choices."
         if use_chat_template:
+            prompt = prompt.rstrip()
             prompt = apply_chat_template(prompt, checkpoint, with_image=with_image)
-            prompt += " "
-        else:
-            if with_image:
-                prompt = "<image>\n" + prompt
-            prompt += "\n"
-        prompt += "Best option: ("
+            prompt += " " if prompt[-1] != "\n" else ""
+        elif with_image:
+            prompt = "<image>\n" + prompt
+        prompt += "Answer: ("
         prompts.append(prompt)
     return prompts
 
@@ -121,27 +120,50 @@ def get_metrics(word2preds, word2labels):
         predictions = [p if p > -1 else 0 for p in predictions]
         f1[word] = round(f1_score(labels, predictions, average='macro') * 100, 1)
         accuracy[word] = round(accuracy_score(labels, predictions) * 100, 1)
+    f1["average"] = round(sum(f1.values()) / len(f1), 1)
+    accuracy["average"] = round(sum(accuracy.values()) / len(accuracy), 1)
     return f1, accuracy
 
 
-def main(data_folder=None, results_path=None, image_path=None, use_chat_template=False, debug=False, disable_tqdm=False):
+def main(
+    data_folder=None,
+    results_path=None,
+    image_path=None,
+    black_images=False,
+    use_chat_template=False,
+    debug=False,
+    disable_tqdm=False,
+):
     checkpoints = [
+        "TIGER-Lab/Mantis-8B-Idefics2",
         "HuggingFaceM4/idefics2-8b",
         "llava-hf/llava-v1.6-mistral-7b-hf",
         "llava-hf/llava-1.5-7b-hf",
         "llava-hf/bakLlava-v1-hf",
     ]
-    if image_path is None:
+    if image_path is None and not black_images:
         checkpoints += [
             "lmsys/vicuna-7b-v1.5",
             "mistralai/Mistral-7B-Instruct-v0.2",
             "meta-llama/Meta-Llama-3-8B-Instruct",
         ]
+    if not use_chat_template:
+        checkpoints += ["HuggingFaceM4/idefics2-8b-base"]
+    if not use_chat_template and image_path is None:
+        checkpoints += ["mistralai/Mistral-7B-v0.1"]
 
-    sd_images = get_sd_images(image_path) if image_path is not None else None
+    # sd_images = get_sd_images(image_path) if image_path is not None else None
     wordsenses, coarsewsd = load_coarsewsd(data_folder)
-    if debug:
-        coarsewsd, sd_images = get_debug_data(coarsewsd, sd_images)
+    # if debug:
+    #     coarsewsd, sd_images = get_debug_data(coarsewsd, sd_images)
+
+    if black_images:
+        sd_images = get_sd_images(black_images=len(coarsewsd))
+    elif image_path is not None:
+        sd_images = get_sd_images(image_path=image_path)
+    else:
+        sd_images = None
+
     words = sorted(list(set([sample["word"] for sample in coarsewsd])))
     wordsenses = {word: wordsenses[word] for word in words}
 
@@ -158,7 +180,11 @@ def main(data_folder=None, results_path=None, image_path=None, use_chat_template
         print(prompts[:3])
         word2preds = {}
         word2labels = {}
-        predictions = run_model_inference(model, processor, prompts, sd_images=sd_images, batch_size=16, disable_tqdm=disable_tqdm)
+        predictions = run_model_inference(
+            model, processor, prompts,
+            sd_images=sd_images, batch_size=16,
+            disable_tqdm=disable_tqdm
+        )
         for word in words:
             word2preds[word] = [pred for pred, sample in zip(predictions, coarsewsd) if sample["word"] == word]
             word2labels[word] = [sample["label"] for sample in coarsewsd if sample["word"] == word]
@@ -170,7 +196,12 @@ def main(data_folder=None, results_path=None, image_path=None, use_chat_template
     if not debug:
         if results_path is None:
             os.makedirs(RESULTS_DIR, exist_ok=True)
-            wimage = '_wimage' if image_path else ''
+            if black_images:
+                wimage = '_black'
+            elif image_path is not None:
+                wimage = '_wimage'
+            else:
+                wimage = ''
             wchat = '_chat' if use_chat_template else ''
             results_path = f"coarsewsd{wimage}{wchat}-results.json"
             results_path = RESULTS_DIR / results_path
@@ -186,6 +217,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-folder", type=str, default=None)
     parser.add_argument("--results-path", type=str, default=None)
     parser.add_argument("--image-path", type=str, default=None)
+    parser.add_argument("--black-images", action="store_true", default=False)
     parser.add_argument("--use-chat-template", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--disable-tqdm", action="store_true", default=False)
@@ -194,6 +226,7 @@ if __name__ == "__main__":
         data_folder=args.data_folder,
         results_path=args.results_path,
         image_path=args.image_path,
+        black_images=args.black_images,
         use_chat_template=args.use_chat_template,
         debug=args.debug,
         disable_tqdm=args.disable_tqdm

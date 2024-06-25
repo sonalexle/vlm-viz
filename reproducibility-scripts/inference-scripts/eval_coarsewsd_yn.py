@@ -20,19 +20,19 @@ ARTIFACTS_DIR = Path(os.environ.get("ARTIFACTS_DIR", "data"))
 
 
 def build_instruction(with_image=False):
-    instruction = """Instruction: The word "{}" may mean one of the following: {}. """
+    instruction = """# Instruction\n\nThe word "{}" may mean one of the following: {}. """
     if with_image:
         instruction += """This image illustrates the "{}" meaning of the word "{}" in the sentence below. """
-    instruction += """Your task is to """
+    instruction += 'Given the sentence below as context, '
     if with_image:
         instruction += 'observe this image carefully, then '
-    instruction += 'read the following sentence and determine the meaning of the word "{}".\n'
+    instruction += 'read the following sentence and determine the meaning of the word "{}".\n\n'
+    instruction += "## Your Task\n\n"
     instruction += """Sentence: {}\nQuestion: Does the word "{}" in the given sentence mean "{}"? Please answer Yes or No.\nAnswer:"""
     return instruction
 
 
 class CLIPScore:
-
     def __init__(self, checkpoint, half_precision=False, device_map="cuda:0"):
         kwargs = {}
         if half_precision:
@@ -231,6 +231,7 @@ def main(
     disable_tqdm=False, debug=False, no_clip_cache=False
 ):
     checkpoints = [
+        "TIGER-Lab/Mantis-8B-Idefics2",
         "HuggingFaceM4/idefics2-8b",
         "llava-hf/llava-v1.6-mistral-7b-hf",
         "llava-hf/llava-1.5-7b-hf",
@@ -242,6 +243,10 @@ def main(
             "mistralai/Mistral-7B-Instruct-v0.2",
             "meta-llama/Meta-Llama-3-8B-Instruct",
         ]
+    if not use_chat_template:
+        checkpoints += ["HuggingFaceM4/idefics2-8b-base"]
+    if not use_chat_template and image_path is None:
+        checkpoints += ["mistralai/Mistral-7B-v0.1"]
 
     wordsenses, coarsewsd = load_coarsewsd(split="test")
     sense2image = get_sense2image(wordsenses, image_folder=image_path)

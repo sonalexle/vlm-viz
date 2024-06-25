@@ -192,7 +192,8 @@ def get_model_class(model_checkpoint):
         "llama3": ["meta-llama/Meta-Llama-3-8B-Instruct", "meta-llama/Meta-Llama-3-8B"],
         "mistral": [
             "mistralai/Mistral-7B-Instruct-v0.2", "HuggingFaceM4/idefics2-8b", "HuggingFaceM4/idefics2-8b-base",
-            "llava-hf/llava-v1.6-mistral-7b-hf", "llava-hf/bakLlava-v1-hf"
+            "llava-hf/llava-v1.6-mistral-7b-hf", "llava-hf/bakLlava-v1-hf", "mistralai/Mistral-7B-v0.1",
+            "HuggingFaceM4/idefics2-8b-base", "TIGER-Lab/Mantis-8B-Idefics2"
         ],
         "gemma": ["google/gemma-1.1-2b-it", "google/paligemma-3b-pt-448"],
     }
@@ -201,9 +202,20 @@ def get_model_class(model_checkpoint):
             return class_name
 
 
-def get_sd_images(image_path):
-    with open(image_path, "rb") as f:
-        sd_images = pickle.load(f)
+def get_sd_images(image_path: str = None, black_images: int = None):
+    """Load a *list* of black images or a list of images from a pickle file.
+    """
+    if black_images is not None:
+        assert type(black_images) == int, \
+            "black_images must be an integer, specifying the number of black images to generate"
+        black_img = Image.new("RGB", (512, 512), (0, 0, 0))
+        # if images were loaded as below, their rez would be (512, 512)
+        sd_images = [black_img for _ in range(black_images)]
+    elif image_path is not None:
+        with open(image_path, "rb") as f:
+            sd_images: List[Image.Image] = pickle.load(f)
+    else:
+        raise ValueError("Either black_images or image_path must be provided")
     return sd_images
 
 
